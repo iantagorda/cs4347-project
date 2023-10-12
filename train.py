@@ -58,13 +58,11 @@ feature_extractor = Wav2Vec2FeatureExtractor(
 processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
 
-# Create the dataset and split it to train, val and test
+# Create the dataset and split it to train and val
 l2_artic_dataset = L2ArcticDataset(
     processor, waveform_paths, lm_labels, accent_labels, gender_labels
 )
-train_dataset, val_dataset, test_dataset = random_split(
-    l2_artic_dataset, [0.8, 0.1, 0.1]
-)
+train_dataset, val_dataset = random_split(l2_artic_dataset, [0.9, 0.1])
 
 
 # Create the data loaders
@@ -74,9 +72,6 @@ train_dataloader = DataLoader(
 )
 val_dataloader = DataLoader(
     val_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=False
-)
-test_dataloader = DataLoader(
-    test_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=False
 )
 
 print("Creating the model...")
@@ -98,19 +93,72 @@ model = MultiTaskWav2Vec2(
 print("Starting the training...")
 # Training Loop
 model.to(device)
-model.train()
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+min_val_loss = 9999
 for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}:")
+
+    # Training
+    model.train()
+    epoch_total_loss = 0
+    epoch_ctc_loss = 0
+    epoch_accent_loss = 0
+    epoch_gender_loss = 0
     for waveform, lm_labels, accent_labels, gender_labels in train_dataloader:
+        # Forward pass and loss calculation
         ctc_loss, lm_logits, accent_logits, gender_logits = model(waveform, lm_labels)
         accent_loss = criterion(accent_logits, accent_labels)
         gender_loss = criterion(gender_logits, gender_labels)
-
         total_loss = ctc_loss + accent_loss + gender_loss
+
+        # Optimize parameters
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
 
-        print(total_loss.item())
+        # Accumulate losses for the epoch (for logging)
+        epoch_total_loss += total_loss.item()
+        epoch_ctc_loss += ctc_loss.item()
+        epoch_accent_loss += accent_loss.item()
+        epoch_gender_loss += gender_loss.item()
+
+    print("---Training Losses---")
+    print(f"Total Loss:  {epoch_total_loss/len(train_dataloader)}")
+    print(f"CTC Loss:    {epoch_ctc_loss/len(train_dataloader)}")
+    print(f"Accent Loss: {epoch_accent_loss/len(train_dataloader)}")
+    print(f"Gender Loss: {epoch_gender_loss/len(train_dataloader)}")
+
+    # Validation
+    model.eval()
+    epoch_total_loss = 0
+    epoch_ctc_loss = 0
+    epoch_accent_loss = 0
+    epoch_gender_loss = 0
+    with torch.no_grad():
+        for waveform, lm_labels, accent_labels, gender_labels in val_dataloader:
+            # Forward pass and loss calculation
+            ctc_loss, lm_logits, accent_logits, gender_logits = model(
+                waveform, lm_labels
+            )
+            accent_loss = criterion(accent_logits, accent_labels)
+            gender_loss = criterion(gender_logits, gender_labels)
+            total_loss = ctc_loss + accent_loss + gender_loss
+
+            # Accumulate losses for the epoch (for logging)
+            epoch_total_loss += total_loss.item()
+            epoch_ctc_loss += ctc_loss.item()
+            epoch_accent_loss += accent_loss.item()
+            epoch_gender_loss += gender_loss.item()
+
+    print("---Validation Losses---")
+    print(f"Total Loss:  {epoch_total_loss/len(val_dataloader)}")
+    print(f"CTC Loss:    {epoch_ctc_loss/len(val_dataloader)}")
+    print(f"Accent Loss: {epoch_accent_loss/len(val_dataloader)}")
+    print(f"Gender Loss: {epoch_gender_loss/len(val_dataloader)}")
+
+    # Save model with the lowest validation loss
+    if epoch_total_loss < min_val_loss:
+        min_val_loss = epoch_total_loss
+        torch.save(model.state_dict(), "best.pt")
+    torch.save(model.state_dict(), "last.pt")
