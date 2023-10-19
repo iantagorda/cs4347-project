@@ -80,13 +80,13 @@ class L2ArcticDataset(Dataset):
 
 
 class MultiTaskWav2Vec2(nn.Module):
-    def __init__(self, wav2vec2_backbone, num_accent_class):
+    def __init__(self, wav2vec2_backbone, backbone_hidden_size, projection_hidden_size, num_accent_class):
         super().__init__()
         self.wav2vec2 = wav2vec2_backbone
-        self.accent_projector = nn.Linear(768, 256)
-        self.accent_classifier = nn.Linear(256, num_accent_class)
-        self.gender_projector = nn.Linear(768, 256)
-        self.gender_classifier = nn.Linear(256, 2)
+        self.accent_projector = nn.Linear(backbone_hidden_size, projection_hidden_size)
+        self.accent_classifier = nn.Linear(projection_hidden_size, num_accent_class)
+        self.gender_projector = nn.Linear(backbone_hidden_size, projection_hidden_size)
+        self.gender_classifier = nn.Linear(projection_hidden_size, 2)
 
     def forward(self, waveform, lm_labels):
         # use hugging face wav2vecc2

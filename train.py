@@ -17,13 +17,18 @@ from utils import *
 from models import *
 
 
+file_prefix = "multitask"
+
 # Hyperparameters
 learning_rate = 3e-4
-num_epochs = 3
+num_epochs = 450
 batch_size = 8
+projection_hidden_size = 256
 
-model_path = "facebook/wav2vec2-base-960h"
+model_path = "facebook/wav2vec2-xls-r-300m"
+backbone_hidden_size = 1024 # this depends on the pre trained model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 
 
 print("Loading the data...")
@@ -62,7 +67,8 @@ processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tok
 l2_artic_dataset = L2ArcticDataset(
     processor, waveform_paths, lm_labels, accent_labels, gender_labels
 )
-train_dataset, val_dataset = random_split(l2_artic_dataset, [0.9, 0.1])
+train_split_generator = torch.Generator().manual_seed(42)
+train_dataset, val_dataset = random_split(l2_artic_dataset, [0.9, 0.1], generator=train_split_generator)
 
 
 # Create the data loaders
@@ -86,7 +92,10 @@ wav2vec2_backbone = Wav2Vec2ForCTC.from_pretrained(
 )
 wav2vec2_backbone = wav2vec2_backbone.to(device)
 model = MultiTaskWav2Vec2(
-    wav2vec2_backbone=wav2vec2_backbone, num_accent_class=len(accents)
+    wav2vec2_backbone = wav2vec2_backbone, 
+    backbone_hidden_size = backbone_hidden_size,
+    projection_hidden_size = projection_hidden_size,
+    num_accent_class = len(accents),
 )
 
 
@@ -95,8 +104,10 @@ print("Starting the training...")
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-min_val_loss = 9999
+min_val_total_loss = 9999
+min_val_ctc_loss = 9999
 for epoch in range(num_epochs):
+    print()
     print(f"Epoch {epoch + 1}:")
 
     # Training
@@ -115,6 +126,7 @@ for epoch in range(num_epochs):
         # Optimize parameters
         optimizer.zero_grad()
         total_loss.backward()
+        # ctc_loss.backward()
         optimizer.step()
 
         # Accumulate losses for the epoch (for logging)
@@ -157,8 +169,14 @@ for epoch in range(num_epochs):
     print(f"Accent Loss: {epoch_accent_loss/len(val_dataloader)}")
     print(f"Gender Loss: {epoch_gender_loss/len(val_dataloader)}")
 
-    # Save model with the lowest validation loss
-    if epoch_total_loss < min_val_loss:
-        min_val_loss = epoch_total_loss
-        torch.save(model.state_dict(), "best.pt")
-    torch.save(model.state_dict(), "last.pt")
+    # Save model with the lowest validation total loss
+    if epoch_total_loss < min_val_total_loss:
+        min_val_total_loss = epoch_total_loss
+        torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_total.pt")
+
+    # Save model with the lowest validation ctc loss
+    if epoch_ctc_loss < min_val_ctc_loss:
+        min_val_ctc_loss = epoch_ctc_loss
+        torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_ctc.pt")
+ 
+    torch.save(model.state_dict(), f"checkpoints/{file_prefix}_last.pt")
