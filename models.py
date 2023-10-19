@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torchaudio
@@ -9,6 +11,26 @@ class DataCollator:
         self.processor = processor
         self.padding = padding
         self.device = device
+        self.sampling_rate = 16000
+
+        atempos = (0.8, 1.0, 1.25)  # audio tempo atempo=tempo
+        audio_effects = (
+            ("highpass=frequency=1500",),
+            (
+                "vibrato=f=5:d=0.4",
+                "volume=1.5",
+            ),
+            (
+                "aecho=0.8:0.88:30:0.3",
+                "volume=1.5",
+            ),
+        )
+
+        self.effectors = [None]
+        for atempo in atempos:
+            for audio_effect in audio_effects:
+                effect = f"atempo={atempo}," + ",".join(audio_effect)
+                self.effectors.append(torchaudio.io.AudioEffector(effect=effect))
 
     def __call__(self, data):
         waveforms, lm_labels, accent_labels, gender_labels = zip(*data)
@@ -16,7 +38,8 @@ class DataCollator:
         gender_labels = torch.tensor(gender_labels, device=self.device)
 
         input_features = [
-            {"input_values": waveform.squeeze()} for waveform in waveforms
+            {"input_values": self.random_augment(waveform).squeeze()}
+            for waveform in waveforms
         ]
         label_features = [{"input_ids": lm_label} for lm_label in lm_labels]
 
@@ -41,6 +64,14 @@ class DataCollator:
         padded_lm_labels = padded_lm_labels.to(self.device)
 
         return padded_waveforms, padded_lm_labels, accent_labels, gender_labels
+
+    def random_augment(self, waveform):
+        waveform = torch.tensor(waveform)
+        waveform = torch.transpose(waveform, 0, 1)
+        effector = random.choice(self.effectors)
+        if effector is None:
+            return waveform
+        return effector.apply(waveform, self.sampling_rate)
 
 
 class L2ArcticDataset(Dataset):
@@ -80,7 +111,13 @@ class L2ArcticDataset(Dataset):
 
 
 class MultiTaskWav2Vec2(nn.Module):
-    def __init__(self, wav2vec2_backbone, backbone_hidden_size, projection_hidden_size, num_accent_class):
+    def __init__(
+        self,
+        wav2vec2_backbone,
+        backbone_hidden_size,
+        projection_hidden_size,
+        num_accent_class,
+    ):
         super().__init__()
         self.wav2vec2 = wav2vec2_backbone
         self.accent_projector = nn.Linear(backbone_hidden_size, projection_hidden_size)

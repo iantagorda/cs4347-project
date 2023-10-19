@@ -26,7 +26,7 @@ batch_size = 8
 projection_hidden_size = 256
 
 model_path = "facebook/wav2vec2-xls-r-300m"
-backbone_hidden_size = 1024 # this depends on the pre trained model
+backbone_hidden_size = 1024  # this depends on the pre trained model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -68,7 +68,9 @@ l2_artic_dataset = L2ArcticDataset(
     processor, waveform_paths, lm_labels, accent_labels, gender_labels
 )
 train_split_generator = torch.Generator().manual_seed(42)
-train_dataset, val_dataset = random_split(l2_artic_dataset, [0.9, 0.1], generator=train_split_generator)
+train_dataset, val_dataset = random_split(
+    l2_artic_dataset, [0.9, 0.1], generator=train_split_generator
+)
 
 
 # Create the data loaders
@@ -92,10 +94,10 @@ wav2vec2_backbone = Wav2Vec2ForCTC.from_pretrained(
 )
 wav2vec2_backbone = wav2vec2_backbone.to(device)
 model = MultiTaskWav2Vec2(
-    wav2vec2_backbone = wav2vec2_backbone, 
-    backbone_hidden_size = backbone_hidden_size,
-    projection_hidden_size = projection_hidden_size,
-    num_accent_class = len(accents),
+    wav2vec2_backbone=wav2vec2_backbone,
+    backbone_hidden_size=backbone_hidden_size,
+    projection_hidden_size=projection_hidden_size,
+    num_accent_class=len(accents),
 )
 
 
@@ -178,5 +180,5 @@ for epoch in range(num_epochs):
     if epoch_ctc_loss < min_val_ctc_loss:
         min_val_ctc_loss = epoch_ctc_loss
         torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_ctc.pt")
- 
+
     torch.save(model.state_dict(), f"checkpoints/{file_prefix}_last.pt")
