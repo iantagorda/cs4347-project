@@ -7,11 +7,12 @@ from torch.utils.data import Dataset
 
 
 class DataCollator:
-    def __init__(self, processor, padding, device):
+    def __init__(self, processor, padding, device, augment):
         self.processor = processor
         self.padding = padding
         self.device = device
         self.sampling_rate = 16000
+        self.augment = augment
 
         atempos = (0.8, 1.0, 1.25)  # audio tempo atempo=tempo
         audio_effects = (
@@ -66,12 +67,20 @@ class DataCollator:
         return padded_waveforms, padded_lm_labels, accent_labels, gender_labels
 
     def random_augment(self, waveform):
+        if not self.augment:
+            return waveform
+
         waveform = torch.tensor(waveform)
         waveform = torch.transpose(waveform, 0, 1)
         effector = random.choice(self.effectors)
         if effector is None:
             return waveform
-        return effector.apply(waveform, self.sampling_rate)
+
+        augmented_waveform = effector.apply(waveform, self.sampling_rate)
+        if augmented_waveform.sum().isnan():
+            return waveform
+
+        return augmented_waveform
 
 
 class L2ArcticDataset(Dataset):

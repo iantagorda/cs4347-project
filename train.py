@@ -18,6 +18,7 @@ from models import *
 
 
 file_prefix = "multitask"
+augment = False
 
 # Hyperparameters
 learning_rate = 3e-4
@@ -74,7 +75,7 @@ train_dataset, val_dataset = random_split(
 
 
 # Create the data loaders
-data_collator = DataCollator(processor=processor, padding=True, device=device)
+data_collator = DataCollator(processor=processor, padding=True, device=device, augment=augment)
 train_dataloader = DataLoader(
     train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True
 )
@@ -182,3 +183,8 @@ for epoch in range(num_epochs):
         torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_ctc.pt")
 
     torch.save(model.state_dict(), f"checkpoints/{file_prefix}_last.pt")
+
+print()
+print(f"Minimum CTC Loss: {min_val_ctc_loss}")
+print("Done!")
+
