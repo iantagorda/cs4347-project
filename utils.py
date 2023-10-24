@@ -2,7 +2,7 @@ import textgrid
 import os
 from constants import *
 import jiwer
-import torch
+import numpy as np
 
 
 def get_phones_annotation_data(textgrid_filepath):
@@ -141,7 +141,8 @@ def get_vocab_from_lm_labels(lm_labels):
 
 
 def compute_per(lm_preds, lm_labels, tokenizer):
-    lm_preds = torch.argmax(lm_preds, dim=-1)
+    lm_preds = np.argmax(lm_preds, axis=-1)
+    lm_labels[lm_labels == -100] = tokenizer.pad_token_id
     per_list = []
     for i in range(len(lm_labels)):
         pred_decoded = [phoneme for phoneme in tokenizer.batch_decode(lm_preds[i])]
