@@ -157,7 +157,4 @@ def compute_per(lm_preds, lm_labels, tokenizer):
         per = jiwer.wer(pred_str, label_str)
         per_list.append(per)
 
-    print("Sample Prediction:   ", pred_str)
-    print("Sample Ground Truth: ", label_str)
-
     return per_list

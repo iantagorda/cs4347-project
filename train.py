@@ -1,6 +1,5 @@
 import os
 import glob
-import json
 
 import torch
 import torch.nn as nn
@@ -22,15 +21,13 @@ augment = False
 
 # Hyperparameters
 learning_rate = 3e-4
-num_epochs = 450
+num_epochs = 400
 batch_size = 8
 projection_hidden_size = 256
 
 model_path = "facebook/wav2vec2-xls-r-300m"
 backbone_hidden_size = 1024  # this depends on the pre trained model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-
 
 print("Loading the data...")
 # get the data and segregate them
@@ -38,16 +35,6 @@ speaker_paths = glob.glob(os.path.join(TRAIN_DATA, "*", "*"))
 waveform_paths, lm_labels, accent_labels, gender_labels = get_data_from_speaker_paths(
     speaker_paths
 )
-
-# prepare the vocab and dictionary
-phoneme_vocab = get_vocab_from_lm_labels(lm_labels)
-phoneme_to_id = {phoneme: idx for idx, phoneme in enumerate(phoneme_vocab)}
-id_to_phoneme = {idx: phoneme for idx, phoneme in enumerate(phoneme_vocab)}
-
-# save the vocab file to be used by tokenizer
-with open("phoneme_to_id", "w") as file:
-    json.dump(phoneme_to_id, file)
-
 
 print("Transforming the data...")
 # create tokenizer, feature extractor and processor
@@ -75,14 +62,18 @@ train_dataset, val_dataset = random_split(
 
 
 # Create the data loaders
-data_collator = DataCollator(
+train_data_collator = DataCollator(
     processor=processor, padding=True, device=device, augment=augment
 )
 train_dataloader = DataLoader(
-    train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True
+    train_dataset, batch_size=batch_size, collate_fn=train_data_collator, shuffle=True
+)
+
+val_data_collator = DataCollator(
+    processor=processor, padding=True, device=device, augment=False
 )
 val_dataloader = DataLoader(
-    val_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=False
+    val_dataset, batch_size=batch_size, collate_fn=val_data_collator, shuffle=False
 )
 
 print("Creating the model...")
@@ -109,8 +100,7 @@ print("Starting the training...")
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-min_val_total_loss = 9999
-min_val_ctc_loss = 9999
+min_val_per = 9999
 for epoch in range(num_epochs):
     print()
     print(f"Epoch {epoch + 1}:")
@@ -121,6 +111,7 @@ for epoch in range(num_epochs):
     epoch_ctc_loss = 0
     epoch_accent_loss = 0
     epoch_gender_loss = 0
+    per_list = []
     for waveform, lm_labels, accent_labels, gender_labels in train_dataloader:
         # Forward pass and loss calculation
         ctc_loss, lm_logits, accent_logits, gender_logits = model(waveform, lm_labels)
@@ -139,12 +130,17 @@ for epoch in range(num_epochs):
         epoch_ctc_loss += ctc_loss.item()
         epoch_accent_loss += accent_loss.item()
         epoch_gender_loss += gender_loss.item()
+        per_batch = compute_per(lm_logits, lm_labels, tokenizer)
+        per_list.extend(per_batch)
+
+    epoch_per = sum(per_list) / len(per_list)
 
     print("---Training Losses---")
     print(f"Total Loss:  {epoch_total_loss/len(train_dataloader)}")
     print(f"CTC Loss:    {epoch_ctc_loss/len(train_dataloader)}")
     print(f"Accent Loss: {epoch_accent_loss/len(train_dataloader)}")
     print(f"Gender Loss: {epoch_gender_loss/len(train_dataloader)}")
+    print(f"Average PER: {epoch_per}")
 
     # Validation
     model.eval()
@@ -152,6 +148,7 @@ for epoch in range(num_epochs):
     epoch_ctc_loss = 0
     epoch_accent_loss = 0
     epoch_gender_loss = 0
+    per_list = []
     with torch.no_grad():
         for waveform, lm_labels, accent_labels, gender_labels in val_dataloader:
             # Forward pass and loss calculation
@@ -167,25 +164,25 @@ for epoch in range(num_epochs):
             epoch_ctc_loss += ctc_loss.item()
             epoch_accent_loss += accent_loss.item()
             epoch_gender_loss += gender_loss.item()
+            per_batch = compute_per(lm_logits, lm_labels, tokenizer)
+            per_list.extend(per_batch)
+
+    epoch_per = sum(per_list) / len(per_list)
 
     print("---Validation Losses---")
     print(f"Total Loss:  {epoch_total_loss/len(val_dataloader)}")
     print(f"CTC Loss:    {epoch_ctc_loss/len(val_dataloader)}")
     print(f"Accent Loss: {epoch_accent_loss/len(val_dataloader)}")
     print(f"Gender Loss: {epoch_gender_loss/len(val_dataloader)}")
-
-    # Save model with the lowest validation total loss
-    if epoch_total_loss < min_val_total_loss:
-        min_val_total_loss = epoch_total_loss
-        torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_total.pt")
+    print(f"Average PER: {epoch_per}")
 
     # Save model with the lowest validation ctc loss
-    if epoch_ctc_loss < min_val_ctc_loss:
-        min_val_ctc_loss = epoch_ctc_loss
-        torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best_ctc.pt")
+    if epoch_per < min_val_per:
+        min_val_per = epoch_per
+        torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best.pt")
 
     torch.save(model.state_dict(), f"checkpoints/{file_prefix}_last.pt")
 
 print()
-print(f"Minimum CTC Loss: {min_val_ctc_loss}")
+print(f"Minimum PER: {min_val_per}")
 print("Done!")
