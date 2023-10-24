@@ -34,7 +34,7 @@ print(device)
 
 print("Loading the data...")
 # get the data and segregate them
-speaker_paths = glob.glob(os.path.join(DATA_ROOT, "*", "*"))
+speaker_paths = glob.glob(os.path.join(TRAIN_DATA, "*", "*"))
 waveform_paths, lm_labels, accent_labels, gender_labels = get_data_from_speaker_paths(
     speaker_paths
 )
@@ -75,7 +75,9 @@ train_dataset, val_dataset = random_split(
 
 
 # Create the data loaders
-data_collator = DataCollator(processor=processor, padding=True, device=device, augment=augment)
+data_collator = DataCollator(
+    processor=processor, padding=True, device=device, augment=augment
+)
 train_dataloader = DataLoader(
     train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True
 )
@@ -187,4 +189,3 @@ for epoch in range(num_epochs):
 print()
 print(f"Minimum CTC Loss: {min_val_ctc_loss}")
 print("Done!")
-

@@ -1,5 +1,6 @@
 # Folder names
-DATA_ROOT = "train_data"
+TRAIN_DATA = "train_data"
+TEST_DATA = "test_data"
 ANNOTATIONS_FOLDER_NAME = "annotation"
 WAV_FOLDER_NAME = "wav"
 TRANSCRIPT_FOLDER_NAME = "transcript"
