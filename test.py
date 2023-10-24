@@ -15,8 +15,8 @@ from utils import *
 from models import *
 
 
-batch_size = 8
-checkpoint_path = ""
+batch_size = 64
+checkpoint_paths = glob.glob(os.path.join("checkpoints", "*"))
 
 
 projection_hidden_size = 256
@@ -79,15 +79,19 @@ model = MultiTaskWav2Vec2(
     projection_hidden_size=projection_hidden_size,
     num_accent_class=len(accents),
 )
-model.load_state_dict(checkpoint_path)
 
-print("Starting the testing...")
-model.to(device)
-model.eval()
-per_list = []
-with torch.no_grad():
-    for waveform, lm_labels, accent_labels, gender_labels in test_dataloader:
-        _, lm_logits, accent_logits, gender_logits = model(waveform, lm_labels)
-        per = compute_per(lm_logits, lm_labels, tokenizer)
-        per_list.append(per)
-print("Average PER: ", sum(per_list) / len(per_list))
+for checkpoint_path in checkpoint_paths:
+    print(f"Loading checkpoint: {checkpoint_path}")
+
+    model.load_state_dict(torch.load(checkpoint_path))
+    model.to(device)
+    model.eval()
+
+    per_list = []
+    with torch.no_grad():
+        for waveform, lm_labels, accent_labels, gender_labels in test_dataloader:
+            _, lm_logits, accent_logits, gender_logits = model(waveform, lm_labels)
+            per = compute_per(lm_logits, lm_labels, tokenizer)
+            per_list.append(per)
+    print("Average PER: ", sum(per_list) / len(per_list))
+    print()
