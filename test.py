@@ -15,8 +15,8 @@ from utils import *
 from models import *
 
 
-batch_size = 64
-checkpoint_paths = glob.glob(os.path.join("checkpoints", "*"))
+batch_size = 128
+checkpoint_paths = glob.glob(os.path.join("checkpoints", "*_best_ctc.pt"))
 
 
 projection_hidden_size = 256
@@ -91,7 +91,7 @@ for checkpoint_path in checkpoint_paths:
     with torch.no_grad():
         for waveform, lm_labels, accent_labels, gender_labels in test_dataloader:
             _, lm_logits, accent_logits, gender_logits = model(waveform, lm_labels)
-            per = compute_per(lm_logits, lm_labels, tokenizer)
-            per_list.append(per)
+            per_batch = compute_per(lm_logits, lm_labels, tokenizer)
+            per_list.extend(per_batch)
     print("Average PER: ", sum(per_list) / len(per_list))
     print()

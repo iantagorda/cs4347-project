@@ -142,6 +142,7 @@ def get_vocab_from_lm_labels(lm_labels):
 
 def compute_per(lm_preds, lm_labels, tokenizer):
     lm_preds = torch.argmax(lm_preds, dim=-1)
+    per_list = []
     for i in range(len(lm_labels)):
         pred_decoded = [phoneme for phoneme in tokenizer.batch_decode(lm_preds[i])]
         label_decoded = [
@@ -153,5 +154,9 @@ def compute_per(lm_preds, lm_labels, tokenizer):
         label_str = " ".join(label_decoded)
 
         per = jiwer.wer(pred_str, label_str)
+        per_list.append(per)
 
-        return per
+    print("Sample Prediction:   ", pred_str)
+    print("Sample Ground Truth: ", label_str)
+
+    return per_list
