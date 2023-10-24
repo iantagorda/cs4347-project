@@ -77,7 +77,7 @@ class DataCollator:
             return waveform
 
         augmented_waveform = effector.apply(waveform, self.sampling_rate)
-        if augmented_waveform.sum().isnan():
+        if augmented_waveform.isnan().any() | augmented_waveform.isinf().any():
             return waveform
 
         return augmented_waveform
