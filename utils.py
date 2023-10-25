@@ -141,20 +141,18 @@ def get_vocab_from_lm_labels(lm_labels):
 
 
 def compute_per(lm_preds, lm_labels, tokenizer):
+    # Get predicted ids and convert back padding tokens in labels
     lm_preds = torch.argmax(lm_preds, dim=-1)
     lm_labels[lm_labels == -100] = tokenizer.pad_token_id
+
+    # Decode output results
+    pred_decoded = tokenizer.batch_decode(lm_preds)
+    label_decoded = tokenizer.batch_decode(lm_labels)
+
+    # Calculate PER
     per_list = []
-    for i in range(len(lm_labels)):
-        pred_decoded = [phoneme for phoneme in tokenizer.batch_decode(lm_preds[i])]
-        label_decoded = [
-            phoneme
-            for phoneme in tokenizer.batch_decode(lm_labels[i], group_tokens=False)
-        ]
-
-        pred_str = " ".join(pred_decoded)
-        label_str = " ".join(label_decoded)
-
-        per = jiwer.wer(pred_str, label_str)
+    for i in range(len(pred_decoded)):
+        per = jiwer.wer(pred_decoded[i], label_decoded[i])
         per_list.append(per)
 
     return per_list
