@@ -180,6 +180,7 @@ for epoch in range(num_epochs):
     if epoch_per < min_val_per:
         min_val_per = epoch_per
         torch.save(model.state_dict(), f"checkpoints/{file_prefix}_best.pt")
+    print(f"Minimum PER: {min_val_per}")
 
     torch.save(model.state_dict(), f"checkpoints/{file_prefix}_last.pt")
 
