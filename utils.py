@@ -152,7 +152,10 @@ def compute_per(lm_preds, lm_labels, tokenizer):
     # Calculate PER
     per_list = []
     for i in range(len(pred_decoded)):
-        per = jiwer.wer(pred_decoded[i], label_decoded[i])
+        if label_decoded[i] == "":
+            per = 1
+        else:
+            per = jiwer.wer(pred_decoded[i], label_decoded[i])
         per_list.append(per)
 
     return per_list
