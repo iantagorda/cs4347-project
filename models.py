@@ -173,6 +173,7 @@ class MultitaskPhonemeASRModel:
         self.device = device
 
     def get_l2_phoneme_sequence(self, audio):
+        audio = audio.unsqueeze(0)
         audio = self.processor(audio, sampling_rate=16000).input_values[0]
         audio = torch.tensor(audio, device=self.device)
 
