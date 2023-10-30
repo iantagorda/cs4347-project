@@ -134,12 +134,18 @@ class MultiTaskWav2Vec2(nn.Module):
         self.gender_projector = nn.Linear(backbone_hidden_size, projection_hidden_size)
         self.gender_classifier = nn.Linear(projection_hidden_size, 2)
 
-    def forward(self, waveform, lm_labels):
-        # use hugging face wav2vecc2
-        wav2vec2_output = self.wav2vec2(input_values=waveform, labels=lm_labels)
+    def forward(self, waveform, lm_labels=None):
+        if lm_labels is not None:
+            # use hugging face wav2vecc2
+            wav2vec2_output = self.wav2vec2(input_values=waveform, labels=lm_labels)
 
-        # get partial loss based (lm_head loss or the ctc loss)
-        ctc_loss = wav2vec2_output.loss
+            # get partial loss based (lm_head loss or the ctc loss)
+            ctc_loss = wav2vec2_output.loss
+
+        else:
+            # use hugging face wav2vecc2
+            wav2vec2_output = self.wav2vec2(input_values=waveform)
+            ctc_loss = None
 
         # get features from wav2vec2
         features = wav2vec2_output.hidden_states[-1]
@@ -158,3 +164,19 @@ class MultiTaskWav2Vec2(nn.Module):
         gender_logits = self.gender_classifier(gender_projected)
 
         return ctc_loss, lm_logits, accent_logits, gender_logits
+
+
+class MultitaskPhonemeASRModel:
+    def __init__(self, multitask_model, processor):
+        self.multitask_model = multitask_model
+        self.processor = processor
+
+    def get_l2_phoneme_sequence(self, audio):
+        audio = audio.unsqueeze(0)
+        _, lm_logits, _, _ = self.multitask_model(audio)
+        lm_preds = torch.argmax(lm_logits, dim=-1)
+
+        # Decode output results
+        pred_decoded = self.processor.batch_decode(lm_preds)
+
+        return pred_decoded[0].split(" ")
