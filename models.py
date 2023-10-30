@@ -167,13 +167,17 @@ class MultiTaskWav2Vec2(nn.Module):
 
 
 class MultitaskPhonemeASRModel:
-    def __init__(self, multitask_model, processor):
+    def __init__(self, multitask_model, processor, device):
         self.multitask_model = multitask_model
         self.processor = processor
+        self.device = device
 
     def get_l2_phoneme_sequence(self, audio):
-        audio = audio.unsqueeze(0)
-        _, lm_logits, _, _ = self.multitask_model(audio)
+        audio = self.processor(audio, sampling_rate=16000).input_values[0]
+        audio = torch.tensor(audio, device=self.device)
+
+        with torch.no_grad():
+            _, lm_logits, _, _ = self.multitask_model(audio)
         lm_preds = torch.argmax(lm_logits, dim=-1)
 
         # Decode output results
