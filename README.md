@@ -2,6 +2,7 @@
 
 Contents
 
+```
 checkpoints - Change in pretrained model checkpoint used
 logs - Change in pretrained model checkpoint used
 Data Augmentation of L2-ARCTIC.ipynb - Augmentation and TTS generation on train folder
@@ -14,3 +15,4 @@ models.py - enhanced model definition - Add unsqueeze in MultitaskPhonemeASRMode
 test.py - model test script Minor changes in per computation
 train.py - model train script Use batch decode
 utils.py - utility functions for model training
+```
